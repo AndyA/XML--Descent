@@ -1,4 +1,4 @@
-use Test::More tests => 11;
+use Test::More tests => 12;
 
 BEGIN {
     use_ok( 'XML::Descent' );
@@ -158,3 +158,35 @@ $p9->on('*' => sub {
 $p9->walk();
 
 is_deeply(\@gpath, \@fpath, 'get_path()');
+
+#### Test stash
+
+my $p10 = XML::Descent->new({ Input => \$xml });
+$p10->on(folder => sub {
+    my ($elem, $attr) = @_;
+
+    $p10->on(url => sub {
+        my ($elem, $attr) = @_;
+        my $link = {
+            name    => $attr->{name},
+            url     => $p10->text()
+        };
+        $p10->stash(link => $link);
+    });
+
+    my $folder = $p10->walk();
+    $folder->{name} = $attr->{name};
+
+    $p10->stash(folder => $folder);
+});
+my $gstruc = $p10->walk();
+
+$fstruc = { 'folder' => [ { 'link' => [ { 'url' => 'http://hexten.net/', 'name' => 'Hexten' } 
+          ], 'name' => 'Me' }, { 'link' => [ { 'url' => 'http://www.koders.com/', 
+          'name' => 'Source code search' } ], 'name' => 'Programming', 'folder' => [ { 
+          'link' => [ { 'url' => 'http://search.cpan.org/', 'name' => 'CPAN Search' }, 
+          { 'url' => 'http://perldoc.perl.org/', 'name' => 'Perl Documentation' } ], 
+          'name' => 'Perl' }, { 'link' => [ { 'url' => 'http://www.ruby-lang.org/', 
+          'name' => 'Ruby Home' } ], 'name' => 'Ruby' } ] } ] };
+
+is_deeply($gstruc, $fstruc, 'stash');

@@ -18,7 +18,6 @@ my %context : ATTR;         # Context for walk()
 my %parser  : ATTR;         # The XML::TokeParser
 my %token   : ATTR;         # Last token fetched
 my %path    : ATTR;         # Tag path elements
-my %depth   : ATTR;         # Current parse depth
 
 sub BUILD {
     my ($self, $id, $args) = @_;
@@ -26,24 +25,26 @@ sub BUILD {
     my $input = $args->{Input} || croak("No Input arg");
     delete $args->{Input};
 
-    $parser{$id} = XML::TokeParser->new($input, %{$args});
+    $parser{$id}  = XML::TokeParser->new($input, %{$args});
     $context{$id} = {
         parent      => undef,
         rules       => { },
         store       => { }
     };
+    $token{$id}   = undef;
+    $path{$id}    = [ ];
 }
 
 # Not a method
-sub _get_context_attr {
-    my ($tos, $name) = @_;
-    # Walk up the context stack
-    for (;;) {
-        return $tos->{$name} if exists $tos->{$name};
-        return unless defined $tos->{parent};
-        $tos = $tos->{parent};
-    }
-}
+# sub _get_context_attr {
+#     my ($tos, $name) = @_;
+#     # Walk up the context stack
+#     for (;;) {
+#         return $tos->{$name} if exists $tos->{$name};
+#         return unless defined $tos->{parent};
+#         $tos = $tos->{parent};
+#     }
+# }
 
 # Not a method
 sub _get_rule_handler {
@@ -60,6 +61,13 @@ sub _get_rule_handler {
     }
 }
 
+sub _depth {
+    my $self = shift;
+    my $id   = ident($self);
+    
+    return scalar(@{$path{$id}});
+}
+
 sub get_token() {
     my $self = shift;
     my $id   = ident($self);
@@ -69,14 +77,16 @@ sub get_token() {
     
     if (defined($tok)) {
         if ($tok->[0] eq 'S') {
-            $depth{$id}++;
+            push @{$path{$id}}, $tok->[1];
         } elsif ($tok->[0] eq 'E') {
-            $depth{$id}--;
+            my $tos = pop @{$path{$id}};
+            die "$tos <> $tok->[1]"
+                unless $tos eq $tok->[1];
         }
     }
 
     my $stopat = $context{$id}->{stopat};
-    return if defined($stopat) && $depth{$id} < $stopat;
+    return if defined($stopat) && $self->_depth() < $stopat;
     return $tok;
 }
 
@@ -145,11 +155,10 @@ sub walk {
 
     TOKEN: while (my $tok = $self->get_token()) {
         if ($tok->[0] eq 'S') {
-            push @{$path{$id}}, $tok->[1];
             my $tos = $context{$id};
             my $handler = _get_rule_handler($tos, $tok);
             if (defined($handler)) {
-                my $stopat = $depth{$id};
+                my $stopat = $self->_depth();
                 
                 # Push context
                 $context{$id} = {
@@ -164,7 +173,7 @@ sub walk {
                 
                 # If handler didn't recursively parse the content of
                 # this node we need to discard it.
-                while ($depth{$id} >= $stopat &&
+                while ($self->_depth() >= $stopat &&
                        ($tok = $self->get_token())) {
                     # do nothing
                 }
@@ -174,7 +183,6 @@ sub walk {
             } else {
                 $self->walk();
             }
-            pop @{$path{$id}};
         } elsif ($tok->[0] eq 'E') {
             last TOKEN;
         }
@@ -197,7 +205,7 @@ __END__
 
 =head1 NAME
 
-XML::Descent - Recursive descent XML parsing
+XML::Descent - Simple recursive descent XML parsing
 
 =head1 VERSION
 
@@ -236,27 +244,51 @@ This document describes XML::Descent version 0.0.1
   
 =head1 DESCRIPTION
 
-=for author to fill in:
-    Write a full description of the module and its features here.
-    Use subsections (=head2, =head3) as appropriate.
+The conventional models for parsing XML are either DOM (a data structure
+representing the entire document tree is created) or SAX (callbacks are
+issued for each element in the XML).
+
+XML grammar is recursive - so it's nice to be able to write recursive
+parsers for it. XML::Descent allows such parsers to be created.
+
+Typically a new XML::Descent is created and handlers are defined for
+elements we're interested in
+
+    my $p = XML::Descent->new({ Input => \$xml });
+    $p->on(link => sub {
+        my ($elem, $attr) = @_;
+        print "Found link: ", $attr->{url}, "\n";
+        $p->walk(); # recurse
+    });
+    $p->walk(); # parse
+
+When called at the top level the parsing methods walk(), text() and
+xml() parse the whole XML document. When called recursively within a
+handler they parse the portion of the document nested inside node that
+triggered the handler.
+
+New handlers may be defined within a handler and their scope will be
+limited to the XML inside the node that triggered the handler.
 
 =head1 INTERFACE 
 
 =over
 
-=item walk()
+=item C<new>
 
-=item on()
+=item C<walk>
 
-=item stash()
+=item C<on>
 
-=item text()
+=item C<stash>
 
-=item xml()
+=item C<text>
 
-=item get_path()
+=item C<xml>
 
-=item get_token()
+=item C<get_path>
+
+=item C<get_token>
 
 =back
 
@@ -282,7 +314,6 @@ This document describes XML::Descent version 0.0.1
 
 =back
 
-
 =head1 CONFIGURATION AND ENVIRONMENT
 
 =for author to fill in:
@@ -293,7 +324,6 @@ This document describes XML::Descent version 0.0.1
     configuration language used.
   
 XML::Descent requires no configuration files or environment variables.
-
 
 =head1 DEPENDENCIES
 
@@ -308,26 +338,18 @@ None.
 
 =head1 INCOMPATIBILITIES
 
-=for author to fill in:
-    A list of any modules that this module cannot be used in conjunction
-    with. This may be due to name conflicts in the interface, or
-    competition for system or program resources, or due to internal
-    limitations of Perl (for example, many modules that use source code
-    filters are mutually incompatible).
-
 None reported.
 
+=head1 SEE ALSO
+
+L<http://en.wikipedia.org/wiki/Recursive_descent_parser>
 
 =head1 BUGS AND LIMITATIONS
 
-=for author to fill in:
-    A list of known problems with the module, together with some
-    indication Whether they are likely to be fixed in an upcoming
-    release. Also a list of restrictions on the features the module
-    does provide: data types that cannot be handled, performance issues
-    and the circumstances in which they may arise, practical
-    limitations on the size of data sets, special cases that are not
-    (yet) handled, etc.
+XML::Descent uses C<XML::TokeParser> to do the actual parsing.
+XML::TokeParser can only return start tags, end tags, raw text and
+processing instructions. As a result C<xml()> called at the root of
+an XML document will exclude any <?xml?> declaration.
 
 No bugs have been reported.
 
@@ -335,11 +357,9 @@ Please report any bugs or feature requests to
 C<bug-xml-descent@rt.cpan.org>, or through the web interface at
 L<http://rt.cpan.org>.
 
-
 =head1 AUTHOR
 
 Andy Armstrong  C<< <andy@hexten.net> >>
-
 
 =head1 LICENCE AND COPYRIGHT
 
@@ -347,7 +367,6 @@ Copyright (c) 2006, Andy Armstrong C<< <andy@hexten.net> >>. All rights reserved
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself. See L<perlartistic>.
-
 
 =head1 DISCLAIMER OF WARRANTY
 
