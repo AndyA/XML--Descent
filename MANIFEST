@@ -8,5 +8,4 @@ lib/XML/Descent.pm
 lib/XML/Descent/Tutorial.pm
 t/00.load.t
 t/01.parse.t
-t/pod-coverage.t
 t/pod.t
