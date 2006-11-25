@@ -5,6 +5,7 @@ META.yml # Will be created by "make dist"
 Makefile.PL
 README
 lib/XML/Descent.pm
+lib/XML/Descent/Tutorial.pm
 t/00.load.t
 t/01.parse.t
 t/pod-coverage.t

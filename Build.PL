@@ -8,8 +8,10 @@ my $builder = Module::Build->new(
     dist_author         => 'Andy Armstrong <andy@hexten.net>',
     dist_version_from   => 'lib/XML/Descent.pm',
     requires => {
-        'Test::More' => 0,
-        'version'    => 0,
+        'Test::More'        => 0,
+        'version'           => 0,
+        'XML::TokeParser'   => 0,
+        'Class::Std'        => 0,
     },
     add_to_cleanup      => [ 'XML-Descent-*' ],
 );

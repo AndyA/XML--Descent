@@ -1,4 +1,5 @@
 use Test::More tests => 12;
+use Data::Dumper;
 
 BEGIN {
     use_ok( 'XML::Descent' );
@@ -159,34 +160,56 @@ $p9->walk();
 
 is_deeply(\@gpath, \@fpath, 'get_path()');
 
-#### Test stash
+#### Test context
 
 my $p10 = XML::Descent->new({ Input => \$xml });
-$p10->on(folder => sub {
-    my ($elem, $attr) = @_;
 
-    $p10->on(url => sub {
-        my ($elem, $attr) = @_;
-        my $link = {
-            name    => $attr->{name},
-            url     => $p10->text()
-        };
-        $p10->stash(link => $link);
-    });
+my $root = { };
+$p10->context($root);
 
-    my $folder = $p10->walk();
-    $folder->{name} = $attr->{name};
+$p10->on('*' => sub {
+    my ($elem, $attr, $ctx) = @_;
 
-    $p10->stash(folder => $folder);
+    my $obj = { %{$attr} };        # Keep attributes
+    $p10->context($obj);
+    $p10->walk();
+
+    # Save results in caller's context
+    push @{$ctx->{$elem}}, $obj;
 });
-my $gstruc = $p10->walk();
 
-$fstruc = { 'folder' => [ { 'link' => [ { 'url' => 'http://hexten.net/', 'name' => 'Hexten' } 
-          ], 'name' => 'Me' }, { 'link' => [ { 'url' => 'http://www.koders.com/', 
-          'name' => 'Source code search' } ], 'name' => 'Programming', 'folder' => [ { 
-          'link' => [ { 'url' => 'http://search.cpan.org/', 'name' => 'CPAN Search' }, 
-          { 'url' => 'http://perldoc.perl.org/', 'name' => 'Perl Documentation' } ], 
-          'name' => 'Perl' }, { 'link' => [ { 'url' => 'http://www.ruby-lang.org/', 
-          'name' => 'Ruby Home' } ], 'name' => 'Ruby' } ] } ] };
+# Leaf elements -> save text
+$p10->on(['url', 'title', 'ignored', 'handled'], sub {
+    my ($elem, $attr, $ctx) = @_;
+    push @{$ctx->{$elem}}, {
+        %{$attr},
+        inner_text => $p10->text()
+    };
+});
 
-is_deeply($gstruc, $fstruc, 'stash');
+$p10->on(['body', 'tokenised'] => sub {
+    my ($elem, $attr, $ctx) = @_;
+    push @{$ctx->{$elem}}, {
+        %{$attr},
+        inner_text => $p10->xml()
+    };
+});
+
+$p10->walk();
+
+$fstruc = { 'config' => [ { 'favourites' => [ { 'folder' => [ { 'url' => [ { 'name' => 'Hexten', 
+          'inner_text' => 'http://hexten.net/' } ], 'name' => 'Me' }, { 'url' => [ { 
+          'name' => 'Source code search', 'inner_text' => 'http://www.koders.com/' } ], 
+          'name' => 'Programming', 'folder' => [ { 'url' => [ { 'name' => 'CPAN Search', 
+          'inner_text' => 'http://search.cpan.org/' }, { 'name' => 'Perl Documentation', 
+          'inner_text' => 'http://perldoc.perl.org/' } ], 'name' => 'Perl' }, 
+          { 'url' => [ { 'name' => 'Ruby Home', 'inner_text' => 'http://www.ruby-lang.org/' } ], 
+          'name' => 'Ruby' } ] } ] } ], 'meta' => [ { 'body' => [ { 
+          'inner_text' => 'The body text is just <a href="http://www.w3.org/MarkUp/">HTML</a>.' } ], 
+          'handled' => [ { 'inner_text' => 'This has a handler which doesn\'t recursively parse the contents' } ],
+          'url' => [ { 'inner_text' => 'http://cpan.hexten.net/' } ], 
+          'title' => [ { 'inner_text' => 'Frog fleening' } ], 'tokenised' => [ { 
+          'inner_text' => 'This is <i>tokenised</i>.' } ], 'ignored' => [ { 
+          'inner_text' => 'This text is ignored' } ] } ] } ] }; 
+
+is_deeply($root, $fstruc, 'context');

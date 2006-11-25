@@ -5,13 +5,12 @@ use strict;
 use Carp;
 use XML::TokeParser;
 use Class::Std;
-use Data::Dumper;
 
 use version; our $VERSION = qv('0.0.1');
 
 # TODO:
-#    Extend path selector syntax for on()
-#    Move path recording into get_token()
+#    Implement on_match($re, $sub)
+#    Implement on_path($xpath, $sub)
 #    Add dom() parser
 
 my %context : ATTR;         # Context for walk()
@@ -29,36 +28,26 @@ sub BUILD {
     $context{$id} = {
         parent      => undef,
         rules       => { },
-        store       => { }
+        obj         => undef
     };
     $token{$id}   = undef;
     $path{$id}    = [ ];
 }
 
 # Not a method
-# sub _get_context_attr {
-#     my ($tos, $name) = @_;
-#     # Walk up the context stack
-#     for (;;) {
-#         return $tos->{$name} if exists $tos->{$name};
-#         return unless defined $tos->{parent};
-#         $tos = $tos->{parent};
-#     }
-# }
-
-# Not a method
 sub _get_rule_handler {
     my ($tos, $tok) = @_;
     my $elem = $tok->[1];
-    for (;;) {
+    while (defined($tos)) {
         if (defined($tos->{rules}->{$elem})) {
             return $tos->{rules}->{$elem};
         } elsif (defined($tos->{rules}->{'*'})) {
             return $tos->{rules}->{'*'};
         }
-        return unless defined $tos->{parent};
         $tos = $tos->{parent};
     }
+    
+    return;
 }
 
 sub _depth {
@@ -133,15 +122,6 @@ sub xml {
     return join('', @xml);
 }
 
-sub stash {
-    my $self = shift;
-    my $id   = ident($self);
-    my ($name, $value) = @_;
-    
-    my $parent = $context{$id}->{parent};
-    push @{$parent->{store}->{$name}}, $value;
-}
-
 sub get_path {
     my $self = shift;
     my $id   = ident($self);
@@ -163,13 +143,12 @@ sub walk {
                 # Push context
                 $context{$id} = {
                     parent  => $tos,
-                    rules   => { },
-                    store   => { },
-                    stopat  => $stopat
+                    stopat  => $stopat,
+                    obj     => $tos->{obj}
                 };
                 
                 # Call handler
-                $handler->($tok->[1], $tok->[2]);
+                $handler->($tok->[1], $tok->[2], $tos->{obj});
                 
                 # If handler didn't recursively parse the content of
                 # this node we need to discard it.
@@ -187,8 +166,6 @@ sub walk {
             last TOKEN;
         }
     }
-
-    return $context{$id}->{store};
 }
 
 sub on {
@@ -196,7 +173,36 @@ sub on {
     my $id   = ident($self);
     my ($path, $cb) = @_;
 
-    $context{$id}->{rules}->{$path} = $cb;
+    if (ref($path) eq 'ARRAY') {
+        for my $p (@{$path}) {
+            $context{$id}->{rules}->{$p} = $cb;
+        }
+    } else {
+        $context{$id}->{rules}->{$path} = $cb;
+    }
+}
+
+sub inherit {
+    my $self = shift;
+    my $id   = ident($self);
+    my ($path) = @_;
+
+    if (ref($path) eq 'ARRAY') {
+        $self->inherit($_) for @{$path};
+    } else {
+        $self->on($path, _get_rule_handler($context{$id}->{parent}, $path));
+    }
+}
+
+sub context {
+    my $self = shift;
+    my $id   = ident($self);
+    
+    if (@_) {
+        return $context{$id}->{obj} = $_[0];
+    } else {
+        return $context{$id}->{obj};
+    }
 }
 
 1;
@@ -205,7 +211,7 @@ __END__
 
 =head1 NAME
 
-XML::Descent - Simple recursive descent XML parsing
+XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
@@ -241,7 +247,7 @@ This document describes XML::Descent version 0.0.1
 
     # Parse
     my $res = $p->walk();
-  
+
 =head1 DESCRIPTION
 
 The conventional models for parsing XML are either DOM (a data structure
@@ -262,6 +268,9 @@ elements we're interested in
     });
     $p->walk(); # parse
 
+A handler provides a convenient lexical scope that lasts until the
+closing tag of the element that triggered the handler is reached.
+
 When called at the top level the parsing methods walk(), text() and
 xml() parse the whole XML document. When called recursively within a
 handler they parse the portion of the document nested inside node that
@@ -274,67 +283,237 @@ limited to the XML inside the node that triggered the handler.
 
 =over
 
-=item C<new>
+=item C<new( { options } )>
+
+Create a new XML::Descent. Options are supplied has a hash reference.
+The only option recognised directly by XML::Descent is C<Input> which
+should be reference to the object that provides the XML source. Any
+value that can be passed as the first argument to C<XML::TokeParser-
+>new> is allowed.
+
+The remaining options are passed directly to C<XML::TokeParser>; consult
+that module's documentation for more details.
 
 =item C<walk>
 
-=item C<on>
+Parse part of the XML document tree triggering any handlers that correspond
+with elements it contains. When called recursively within a handler C<walk>
+visits all the elements below the element that triggered the handler and
+then returns.
 
-=item C<stash>
+=item C<on( [ element names ], handler )>
+
+Register a handler to be called when the named element is encountered.
+Multiple element names may be supplied as an array reference. Calling
+C<on> within a handler defines a nested local handler who's scope is
+limited to the containing element. Handlers are called with three
+arguments: the name of the element that triggered the handler, a hash of
+the element's attributes and a user defined context value - see
+C<context> for more about that.
+
+For example:
+
+    $p = XML::Descent->new( { Input => \$some_xml } );
+
+    # Global handler - trigger anywhere an <options> tag is found
+    $p->on(options => sub {
+        my ($elem, $attr, $ctx) = @_;
+        
+        # Define a nested handler for <name> elements that only
+        # applies within the <options> handler.
+        $p->on(name => sub {
+            my ($elem, $attr, $ctx) = @_;
+            # Get the inner text of the name element
+            my $name = $p->text();
+            print "Name: $name\n";
+        });
+        
+        # Recursively walk elements inside <options> triggering
+        # any handlers
+        $p->walk();
+    });
+
+    # Start parsing
+    $p->walk();
+
+A handler should call one of the parsing methods (C<walk>, C<text>, C<xml>
+or C<get_token>) before returning to consume any nested XML. If none of
+the parsing methods are called nested XML is automatically discarded so
+that the parser can properly move past the current element.
+
+Nested handlers temporarily override another handler with the same name.
+A handler named '*' will trigger for all elements for which there is no
+explicit handler. A nested '*' handler hides all handlers defined in
+containing scopes.
+
+=item C<inherit( [ element names ] )>
+
+Inherit handlers from the containing scope. Typically used to import
+handlers that would otherwise be masked by a catch all '*' handler.
+
+    $p->on('a' => sub {
+        my ($elem, $attr, $ctx) = @_;
+        my $link = $attr->{href} || '';
+        my $text = $p->text();
+        print "Link: $text ($link)\n";
+    });
+    
+    $p->on('special' => sub {
+        my ($elem, $attr, $ctx) = @_;
+
+        # Within <special> we want to handle all
+        # tags apart from <a> by printing them out
+        $p->on('*' => sub {
+            my ($elem, $attr, $ctx) = @_;
+            print "Found: $elem\n";
+        });
+        
+        # Get the handler for <a> from our containing
+        # scope.
+        $p->inherit('a');
+        $p->walk();
+    });
+
+The inherited handler is the handler that would have applied in the containing
+scope for an element with the given name. For example:
+
+    $p->on('*' => sub { print "Whatever\n"; $p->walk(); });
+    $p->on('interesting' => sub {
+        # Inherits the default 'Whatever' handler because that's the handler
+        # that would have been called for <frob> in the containing scope
+        $p->inherit('frob');
+        # Handle everything else ourselves
+        #p->on('*', sub { $p->walk(); });
+    });
+
+=item C<context>
+
+Every time a handler is called a new scope is created for it. This allows
+nested handlers to be defined. The current scope contains a user context
+variable which can be used, for example, to keep track of an object that
+is being filled with values parsed from the XML. The context value is
+inherited from the parent scope but may be overridden locally.
+
+For example:
+
+    my $root = { };
+
+    # Set the outermost context
+    $p->context($root);
+
+    # Handle HTML <a href...> links /anywhere/
+    $p->on('a' => sub {
+        my ($elem, $attr, $ctx) = @_;
+        my $link = {
+            href => $attr->{href},
+            text => $p->text()
+        };
+        push @{$ctx->{links}}, $link;
+    });
+    
+    # Links in the body are stored in a nested
+    # object.
+    $p->on('body' => sub {
+        my ($elem, $attr, $ctx) = @_;
+        my $body = { };
+        # Set the context
+        $p->context($body);
+        $p->walk();
+        $ctx->{body} = $body;
+    });
+    
+    $p->walk();
+    
+Note that the handler for <a href...> tags stores its results in the
+current context object - whatever that happens to be. That means that
+outside of any <body> tag links will be stored in C<$root> but within a
+<body> they will be stored in a nested object (C<$root->{body}>). The
+<a> handler itself need know nothing of this.
+
+With no parameter C<context> returns the current context. The current
+context is also passed as the third argument to handlers.
 
 =item C<text>
 
+Return any text contained within the current element. XML markup is
+discarded.
+
 =item C<xml>
+
+Return the unparsed inner XML of the current element. For example:
+
+    $p->on('item' => sub {
+        my ($elem, $attr, $ctx) = @_;
+        my $item_source = $p->xml();
+        print "Item: $item_source\n";
+    });
+
+If <item> contains XHTML (for example) the above handler would correctly
+capture it without recursively parsing any elements it contains. Parsing
+
+    <feed>
+        <item>This is the <i>first story</i>.</item>
+        <item>This is <b>another story</b>.</item>
+    </feed>
+    
+would print
+
+    Item: This is the <i>first story</i>.
+    Item: This is <b>another story</b>.
 
 =item C<get_path>
 
+Called within a handler returns the path that leads to the current
+element. For example:
+
+    $p->on('here' => sub {
+        my ($elem, $attr, $ctx) = @_;
+        print "I am here: ", $p->get_path(), "\n";
+        $p->walk();
+    });
+
+would, if applied to this XML
+
+    <outer>
+        <inner>
+            <here />
+        </inner>
+        <here />
+    </outer>
+    
+print
+
+    I am here: /outer/inner/here
+    I am here: /outer/here
+
 =item C<get_token>
+
+XML::Descent is built on C<XML::TokeParser> which splits an XML document
+into a stream of tokens representing start tags, end tags, literal text,
+comment and processing instructions. Within an element C<get_token> returns
+the same stream of tokens that C<XML::TokeParser> would produce. Returns
+C<undef> once all the tokens contained within the current element have
+been read (i.e. it's impossible to read past the end of the enclosed XML).
 
 =back
 
 =head1 DIAGNOSTICS
 
-=for author to fill in:
-    List every single error and warning message that the module can
-    generate (even the ones that will "never happen"), with a full
-    explanation of each problem, one or more likely causes, and any
-    suggested remedies.
+Please consult the documentation for C<XML::TokeParser> for a list of
+diagnostics it can generate.
 
 =over
 
-=item C<< Error message here, perhaps with %s placeholders >>
+=item C<< No Input arg >>
 
-[Description of error here]
-
-=item C<< Another error message here >>
-
-[Description of error here]
-
-[Et cetera, et cetera]
+The constructor must be passed an arg named 'Input' which is then passed
+as the first argument to the C<XML::TokeParser> constructor.
 
 =back
 
-=head1 CONFIGURATION AND ENVIRONMENT
-
-=for author to fill in:
-    A full explanation of any configuration system(s) used by the
-    module, including the names and locations of any configuration
-    files, and the meaning of any environment variables or properties
-    that can be set. These descriptions must also include details of any
-    configuration language used.
-  
-XML::Descent requires no configuration files or environment variables.
-
 =head1 DEPENDENCIES
 
-=for author to fill in:
-    A list of all the other modules that this module relies upon,
-    including any restrictions on versions, and an indication whether
-    the module is part of the standard Perl distribution, part of the
-    module's distribution, or must be installed separately. ]
-
-None.
-
+XML::TokeParser, Class::Std
 
 =head1 INCOMPATIBILITIES
 
@@ -342,7 +521,10 @@ None reported.
 
 =head1 SEE ALSO
 
-L<http://en.wikipedia.org/wiki/Recursive_descent_parser>
+L<http://en.wikipedia.org/wiki/Recursive_descent_parser>,
+L<XML::Descent::Tutorial>, 
+L<XML::TokeParser>,
+L<XML::Twig>.
 
 =head1 BUGS AND LIMITATIONS
 
