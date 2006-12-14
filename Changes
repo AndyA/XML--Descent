@@ -1,5 +1,9 @@
 Revision history for XML-Descent
 
-0.0.1  Wed Nov 22 15:30:29 2006
-       Initial release.
+0.0.1   2006-11-22
+        Initial release.
 
+0.0.2   2006-12-13
+        Removed orphaned reference to 'stash' in documentation
+
+        
