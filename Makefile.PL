@@ -3,6 +3,7 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
+    (MM->can('signature_target') ? (SIGN => 1) : ()),
     NAME                => 'XML::Descent',
     AUTHOR              => 'Andy Armstrong <andy@hexten.net>',
     VERSION_FROM        => 'lib/XML/Descent.pm',
