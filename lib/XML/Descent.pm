@@ -285,10 +285,10 @@ limited to the XML inside the node that triggered the handler.
 Create a new XML::Descent. Options are supplied has a hash reference.
 The only option recognised directly by XML::Descent is C<Input> which
 should be reference to the object that provides the XML source. Any
-value that can be passed as the first argument to C<XML::TokeParser-
->new> is allowed.
+value that can be passed as the first argument to 
+C<< XML::TokeParser->new >> is allowed.
 
-The remaining options are passed directly to C<XML::TokeParser>; consult
+The remaining options are passed directly to C<XML::TokeParser>. Consult
 that module's documentation for more details.
 
 =item C<walk>
@@ -420,11 +420,11 @@ For example:
     });
     
     $p->walk();
-    
+
 Note that the handler for <a href...> tags stores its results in the
 current context object - whatever that happens to be. That means that
 outside of any <body> tag links will be stored in C<$root> but within a
-<body> they will be stored in a nested object (C<$root->{body}>). The
+<body> they will be stored in a nested object (C<< $root->{body} >>). The
 <a> handler itself need know nothing of this.
 
 With no parameter C<context> returns the current context. The current
