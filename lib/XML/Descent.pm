@@ -6,163 +6,170 @@ use Carp;
 use XML::TokeParser;
 use Class::Std;
 
-use version; our $VERSION = qv('0.0.2');
+use version; our $VERSION = qv( '0.0.2' );
 
 # TODO:
 #    Implement on_match($re, $sub)
 #    Implement on_path($xpath, $sub)
-#    Add dom() parser
+#    Add dom parser
 
-my %context : ATTR;         # Context for walk()
-my %parser  : ATTR;         # The XML::TokeParser
-my %token   : ATTR;         # Last token fetched
-my %path    : ATTR;         # Tag path elements
+my %context : ATTR;    # Context for walk
+my %parser : ATTR;     # The XML::TokeParser
+my %token : ATTR;      # Last token fetched
+my %path : ATTR;       # Tag path elements
 
 sub BUILD {
-    my ($self, $id, $args) = @_;
+    my ( $self, $id, $args ) = @_;
 
-    my $input = $args->{Input} || croak("No Input arg");
-    delete $args->{Input};
+    my $input = delete $args->{Input} || croak( "No Input arg" );
 
-    $parser{$id}  = XML::TokeParser->new($input, %{$args});
+    $parser{$id} = XML::TokeParser->new( $input, %$args );
     $context{$id} = {
-        parent      => undef,
-        rules       => { },
-        obj         => undef
+        parent => undef,
+        rules  => {},
+        obj    => undef
     };
-    $token{$id}   = undef;
-    $path{$id}    = [ ];
+    $token{$id} = undef;
+    $path{$id}  = [];
 }
 
-# Not a method
 sub _get_rule_handler {
-    my ($tos, $tok) = @_;
+    my $self = shift;
+    my ( $tos, $tok ) = @_;
     my $elem = $tok->[1];
-    while (defined($tos)) {
-        if (defined($tos->{rules}->{$elem})) {
-            return $tos->{rules}->{$elem};
-        } elsif (defined($tos->{rules}->{'*'})) {
-            return $tos->{rules}->{'*'};
+    while ( $tos ) {
+        if ( my $handler = $tos->{rules}->{$elem} || $tos->{rules}->{'*'} ) {
+            return $handler;
         }
         $tos = $tos->{parent};
     }
-    
+
     return;
 }
 
 sub _depth {
     my $self = shift;
-    my $id   = ident($self);
-    
-    return scalar(@{$path{$id}});
+    my $id   = ident( $self );
+
+    return scalar( @{ $path{$id} } );
 }
 
-sub get_token() {
+sub get_token {
     my $self = shift;
-    my $id   = ident($self);
+    my $id   = ident( $self );
     my $p    = $parser{$id};
 
-    my $tok = $token{$id} = $p->get_token();
-    
-    if (defined($tok)) {
-        if ($tok->[0] eq 'S') {
-            push @{$path{$id}}, $tok->[1];
-        } elsif ($tok->[0] eq 'E') {
-            my $tos = pop @{$path{$id}};
+    my $tok = $token{$id} = $p->get_token;
+
+    if ( defined( $tok ) ) {
+        if ( $tok->[0] eq 'S' ) {
+            push @{ $path{$id} }, $tok->[1];
+        }
+        elsif ( $tok->[0] eq 'E' ) {
+            my $tos = pop @{ $path{$id} };
             die "$tos <> $tok->[1]"
-                unless $tos eq $tok->[1];
+              unless $tos eq $tok->[1];
         }
     }
 
     my $stopat = $context{$id}->{stopat};
-    return if defined($stopat) && $self->_depth() < $stopat;
+    return if defined( $stopat ) && $self->_depth < $stopat;
     return $tok;
 }
 
 sub text {
     my $self = shift;
-    my $id   = ident($self);
-    my @txt  = ( );
-    
-    TOKEN: while (my $tok = $self->get_token()) {
-        if ($tok->[0] eq 'S') {
-            push @txt, $self->text();
-        } elsif ($tok->[0] eq 'E') {
+    my $id   = ident( $self );
+    my @txt  = ();
+
+    TOKEN: while ( my $tok = $self->get_token ) {
+        if ( $tok->[0] eq 'S' ) {
+            push @txt, $self->text;
+        }
+        elsif ( $tok->[0] eq 'E' ) {
             last TOKEN;
-        } elsif ($tok->[0] eq 'T') {
+        }
+        elsif ( $tok->[0] eq 'T' ) {
             push @txt, $tok->[1];
         }
     }
 
-    return join('', @txt);
+    return join( '', @txt );
 }
 
 sub xml {
     my $self = shift;
-    my $id   = ident($self);
+    my $id   = ident( $self );
 
-    my @xml  = ( );
+    my @xml = ();
 
-    TOKEN: while (my $tok = $self->get_token()) {
-        if ($tok->[0] eq 'S') {
+    TOKEN: while ( my $tok = $self->get_token ) {
+        if ( $tok->[0] eq 'S' ) {
             push @xml, $tok->[4];
-            push @xml, $self->xml();
+            push @xml, $self->xml;
             push @xml, $token{$id}->[2];
-        } elsif ($tok->[0] eq 'E') {
+        }
+        elsif ( $tok->[0] eq 'E' ) {
             last TOKEN;
-        } elsif ($tok->[0] eq 'T' || $tok->[0] eq 'C') {
+        }
+        elsif ( $tok->[0] eq 'T' || $tok->[0] eq 'C' ) {
             push @xml, $tok->[1];
-        } elsif ($tok->[0] eq 'PI') {
+        }
+        elsif ( $tok->[0] eq 'PI' ) {
             push @xml, $tok->[3];
-        } else {
+        }
+        else {
             die "Unhandled token type: $tok->[0]";
         }
     }
 
-    return join('', @xml);
+    return join( '', @xml );
 }
 
 sub get_path {
     my $self = shift;
-    my $id   = ident($self);
+    my $id   = ident( $self );
 
-    return '/' . join('/', @{$path{$id}});
+    return '/' . join( '/', @{ $path{$id} } );
 }
 
 sub walk {
     my $self = shift;
-    my $id   = ident($self);
+    my $id   = ident( $self );
 
-    TOKEN: while (my $tok = $self->get_token()) {
-        if ($tok->[0] eq 'S') {
+    TOKEN: while ( my $tok = $self->get_token ) {
+        if ( $tok->[0] eq 'S' ) {
             my $tos = $context{$id};
-            my $handler = _get_rule_handler($tos, $tok);
-            if (defined($handler)) {
-                my $stopat = $self->_depth();
-                
+            my $handler = $self->_get_rule_handler( $tos, $tok );
+            if ( defined( $handler ) ) {
+                my $stopat = $self->_depth;
+
                 # Push context
                 $context{$id} = {
-                    parent  => $tos,
-                    stopat  => $stopat,
-                    obj     => $tos->{obj}
+                    parent => $tos,
+                    stopat => $stopat,
+                    obj    => $tos->{obj}
                 };
-                
+
                 # Call handler
-                $handler->($tok->[1], $tok->[2], $tos->{obj});
-                
+                $handler->( $tok->[1], $tok->[2], $tos->{obj} );
+
                 # If handler didn't recursively parse the content of
                 # this node we need to discard it.
-                while ($self->_depth() >= $stopat &&
-                       ($tok = $self->get_token())) {
+                while ( $self->_depth >= $stopat
+                    && ( $tok = $self->get_token ) ) {
+
                     # do nothing
                 }
-                
+
                 # Pop context
                 $context{$id} = $tos;
-            } else {
-                $self->walk();
             }
-        } elsif ($tok->[0] eq 'E') {
+            else {
+                $self->walk;
+            }
+        }
+        elsif ( $tok->[0] eq 'E' ) {
             last TOKEN;
         }
     }
@@ -170,39 +177,29 @@ sub walk {
 
 sub on {
     my $self = shift;
-    my $id   = ident($self);
-    my ($path, $cb) = @_;
+    my $id   = ident( $self );
+    my ( $path, $cb ) = @_;
 
-    if (ref($path) eq 'ARRAY') {
-        for my $p (@{$path}) {
-            $context{$id}->{rules}->{$p} = $cb;
-        }
-    } else {
-        $context{$id}->{rules}->{$path} = $cb;
-    }
+    $path = [$path] unless ref $path eq 'ARRAY';
+    $context{$id}->{rules}->{$_} = $cb for @$path;
 }
 
 sub inherit {
-    my $self = shift;
-    my $id   = ident($self);
-    my ($path) = @_;
+    my $self     = shift;
+    my $id       = ident( $self );
+    my ( $path ) = @_;
 
-    if (ref($path) eq 'ARRAY') {
-        $self->inherit($_) for @{$path};
-    } else {
-        $self->on($path, _get_rule_handler($context{$id}->{parent}, $path));
-    }
+    $path = [$path] unless ref $path eq 'ARRAY';
+    $self->on( $_, $self->_get_rule_handler( $context{$id}->{parent}, $_ ) )
+      for @$path;
 }
 
 sub context {
     my $self = shift;
-    my $id   = ident($self);
-    
-    if (@_) {
-        return $context{$id}->{obj} = $_[0];
-    } else {
-        return $context{$id}->{obj};
-    }
+    my $id   = ident( $self );
+
+    $context{$id}->{obj} = shift if @_;
+    return $context{$id}->{obj};
 }
 
 1;
@@ -234,16 +231,16 @@ This document describes XML::Descent version 0.0.2
             my ($elem, $attr) = @_;
             my $link = {
                 name    => $attr->{name},
-                url     => $p->text()
+                url     => $p->text
             };
         });
 
-        my $folder = $p->walk();
+        my $folder = $p->walk;
         $folder->{name} = $attr->{name};
     });
 
     # Parse
-    my $res = $p->walk();
+    my $res = $p->walk;
 
 =head1 DESCRIPTION
 
@@ -261,15 +258,15 @@ elements we're interested in
     $p->on(link => sub {
         my ($elem, $attr) = @_;
         print "Found link: ", $attr->{url}, "\n";
-        $p->walk(); # recurse
+        $p->walk; # recurse
     });
-    $p->walk(); # parse
+    $p->walk; # parse
 
 A handler provides a convenient lexical scope that lasts until the
 closing tag of the element that triggered the handler is reached.
 
-When called at the top level the parsing methods walk(), text() and
-xml() parse the whole XML document. When called recursively within a
+When called at the top level the parsing methods walk, text and
+xml parse the whole XML document. When called recursively within a
 handler they parse the portion of the document nested inside node that
 triggered the handler.
 
@@ -321,17 +318,17 @@ For example:
         $p->on(name => sub {
             my ($elem, $attr, $ctx) = @_;
             # Get the inner text of the name element
-            my $name = $p->text();
+            my $name = $p->text;
             print "Name: $name\n";
         });
         
         # Recursively walk elements inside <options> triggering
         # any handlers
-        $p->walk();
+        $p->walk;
     });
 
     # Start parsing
-    $p->walk();
+    $p->walk;
 
 A handler should call one of the parsing methods (C<walk>, C<text>, C<xml>
 or C<get_token>) before returning to consume any nested XML. If none of
@@ -351,7 +348,7 @@ handlers that would otherwise be masked by a catch all '*' handler.
     $p->on('a' => sub {
         my ($elem, $attr, $ctx) = @_;
         my $link = $attr->{href} || '';
-        my $text = $p->text();
+        my $text = $p->text;
         print "Link: $text ($link)\n";
     });
     
@@ -368,19 +365,19 @@ handlers that would otherwise be masked by a catch all '*' handler.
         # Get the handler for <a> from our containing
         # scope.
         $p->inherit('a');
-        $p->walk();
+        $p->walk;
     });
 
 The inherited handler is the handler that would have applied in the containing
 scope for an element with the given name. For example:
 
-    $p->on('*' => sub { print "Whatever\n"; $p->walk(); });
+    $p->on('*' => sub { print "Whatever\n"; $p->walk; });
     $p->on('interesting' => sub {
         # Inherits the default 'Whatever' handler because that's the handler
         # that would have been called for <frob> in the containing scope
         $p->inherit('frob');
         # Handle everything else ourselves
-        #p->on('*', sub { $p->walk(); });
+        #p->on('*', sub { $p->walk; });
     });
 
 =item C<context>
@@ -403,7 +400,7 @@ For example:
         my ($elem, $attr, $ctx) = @_;
         my $link = {
             href => $attr->{href},
-            text => $p->text()
+            text => $p->text
         };
         push @{$ctx->{links}}, $link;
     });
@@ -415,11 +412,11 @@ For example:
         my $body = { };
         # Set the context
         $p->context($body);
-        $p->walk();
+        $p->walk;
         $ctx->{body} = $body;
     });
     
-    $p->walk();
+    $p->walk;
 
 Note that the handler for <a href...> tags stores its results in the
 current context object - whatever that happens to be. That means that
@@ -441,7 +438,7 @@ Return the unparsed inner XML of the current element. For example:
 
     $p->on('item' => sub {
         my ($elem, $attr, $ctx) = @_;
-        my $item_source = $p->xml();
+        my $item_source = $p->xml;
         print "Item: $item_source\n";
     });
 
@@ -465,8 +462,8 @@ element. For example:
 
     $p->on('here' => sub {
         my ($elem, $attr, $ctx) = @_;
-        print "I am here: ", $p->get_path(), "\n";
-        $p->walk();
+        print "I am here: ", $p->get_path, "\n";
+        $p->walk;
     });
 
 would, if applied to this XML
@@ -527,7 +524,7 @@ L<XML::Twig>.
 
 XML::Descent uses C<XML::TokeParser> to do the actual parsing.
 XML::TokeParser can only return start tags, end tags, raw text and
-processing instructions. As a result C<xml()> called at the root of
+processing instructions. As a result C<xml> called at the root of
 an XML document will exclude any <?xml?> declaration.
 
 No bugs have been reported.
