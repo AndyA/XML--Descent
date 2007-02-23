@@ -1,11 +1,13 @@
 Build.PL
 Changes
-MANIFEST
-META.yml # Will be created by "make dist"
-Makefile.PL
-README
+doc-examples.pl
 lib/XML/Descent.pm
 lib/XML/Descent/Tutorial.pm
+Makefile.PL
+MANIFEST
+META.yml
+README
 t/00.load.t
 t/01.parse.t
+t/pod-coverage.t
 t/pod.t
