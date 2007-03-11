@@ -1,8 +1,6 @@
 Build.PL
 Changes
-doc-examples.pl
 lib/XML/Descent.pm
-lib/XML/Descent/Tutorial.pm
 Makefile.PL
 MANIFEST
 META.yml

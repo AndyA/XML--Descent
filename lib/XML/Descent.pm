@@ -6,7 +6,7 @@ use Carp;
 use XML::TokeParser;
 use Class::Std;
 
-use version; our $VERSION = qv( '0.0.2' );
+use version; our $VERSION = qv( '0.0.4' );
 
 # TODO:
 #    Implement on_match($re, $sub)
@@ -212,7 +212,7 @@ XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
-This document describes XML::Descent version 0.0.2
+This document describes XML::Descent version 0.0.4
 
 =head1 SYNOPSIS
 
@@ -330,8 +330,8 @@ For example:
     # Start parsing
     $p->walk;
 
-A handler should call one of the parsing methods (C<walk>, C<text>, C<xml>
-or C<get_token>) before returning to consume any nested XML. If none of
+A handler may call one of the parsing methods (C<walk>, C<text>, C<xml>
+or C<get_token>) to consume any nested XML before returning. If none of
 the parsing methods are called nested XML is automatically discarded so
 that the parser can properly move past the current element.
 
