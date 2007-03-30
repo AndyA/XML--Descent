@@ -110,14 +110,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>19</integer>
+				<integer>48</integer>
 				<key>line</key>
-				<integer>333</integer>
+				<integer>191</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>310</integer>
+			<integer>184</integer>
 		</dict>
 		<key>t/01.parse.t</key>
 		<dict>
