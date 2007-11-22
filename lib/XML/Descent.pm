@@ -5,7 +5,7 @@ use strict;
 use Carp;
 use XML::TokeParser;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 sub new {
     my $class = shift;
@@ -194,7 +194,7 @@ XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
-This document describes XML::Descent version 0.10
+This document describes XML::Descent version 0.11
 
 =head1 SYNOPSIS
 
@@ -548,15 +548,3 @@ RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
 FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
 SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGES.
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
-/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
-/bin/bash: -c: line 35: syntax error: unexpected end of file
