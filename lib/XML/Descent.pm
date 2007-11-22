@@ -5,7 +5,7 @@ use strict;
 use Carp;
 use XML::TokeParser;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 sub new {
     my $class = shift;
@@ -194,7 +194,7 @@ XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
-This document describes XML::Descent version 0.10
+This document describes XML::Descent version 0.11
 
 =head1 SYNOPSIS
 
