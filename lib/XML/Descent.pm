@@ -4,33 +4,26 @@ use warnings;
 use strict;
 use Carp;
 use XML::TokeParser;
-use Class::Std;
 
-use version; our $VERSION = qv( '0.0.4' );
+our $VERSION = '0.10';
 
-# TODO:
-#    Implement on_match($re, $sub)
-#    Implement on_path($xpath, $sub)
-#    Add dom parser
+sub new {
+    my $class = shift;
+    my $args = shift || {};
 
-my %context : ATTR;    # Context for walk
-my %parser : ATTR;     # The XML::TokeParser
-my %token : ATTR;      # Last token fetched
-my %path : ATTR;       # Tag path elements
+    return bless {
+        parser => XML::TokeParser->new(
+            delete $args->{Input} || croak( "No Input arg" ), %$args
+        ),
+        context => {
+            parent => undef,
+            rules  => {},
+            obj    => undef
+        },
+        token => undef,
+        path  => [],
 
-sub BUILD {
-    my ( $self, $id, $args ) = @_;
-
-    my $input = delete $args->{Input} || croak( "No Input arg" );
-
-    $parser{$id} = XML::TokeParser->new( $input, %$args );
-    $context{$id} = {
-        parent => undef,
-        rules  => {},
-        obj    => undef
-    };
-    $token{$id} = undef;
-    $path{$id}  = [];
+    }, $class;
 }
 
 sub _get_rule_handler {
@@ -38,7 +31,8 @@ sub _get_rule_handler {
     my ( $tos, $tok ) = @_;
     my $elem = $tok->[1];
     while ( $tos ) {
-        if ( my $handler = $tos->{rules}->{$elem} || $tos->{rules}->{'*'} ) {
+        if ( my $handler = $tos->{rules}->{$elem}
+            || $tos->{rules}->{'*'} ) {
             return $handler;
         }
         $tos = $tos->{parent};
@@ -49,37 +43,34 @@ sub _get_rule_handler {
 
 sub _depth {
     my $self = shift;
-    my $id   = ident( $self );
 
-    return scalar( @{ $path{$id} } );
+    return scalar( @{ $self->{path} } );
 }
 
 sub get_token {
     my $self = shift;
-    my $id   = ident( $self );
-    my $p    = $parser{$id};
+    my $p    = $self->{parser};
 
-    my $tok = $token{$id} = $p->get_token;
+    my $tok = $self->{token} = $p->get_token;
 
     if ( defined( $tok ) ) {
         if ( $tok->[0] eq 'S' ) {
-            push @{ $path{$id} }, $tok->[1];
+            push @{ $self->{path} }, $tok->[1];
         }
         elsif ( $tok->[0] eq 'E' ) {
-            my $tos = pop @{ $path{$id} };
+            my $tos = pop @{ $self->{path} };
             die "$tos <> $tok->[1]"
               unless $tos eq $tok->[1];
         }
     }
 
-    my $stopat = $context{$id}->{stopat};
+    my $stopat = $self->{context}->{stopat};
     return if defined( $stopat ) && $self->_depth < $stopat;
     return $tok;
 }
 
 sub text {
     my $self = shift;
-    my $id   = ident( $self );
     my @txt  = ();
 
     TOKEN: while ( my $tok = $self->get_token ) {
@@ -99,7 +90,6 @@ sub text {
 
 sub xml {
     my $self = shift;
-    my $id   = ident( $self );
 
     my @xml = ();
 
@@ -107,7 +97,7 @@ sub xml {
         if ( $tok->[0] eq 'S' ) {
             push @xml, $tok->[4];
             push @xml, $self->xml;
-            push @xml, $token{$id}->[2];
+            push @xml, $self->{token}->[2];
         }
         elsif ( $tok->[0] eq 'E' ) {
             last TOKEN;
@@ -128,24 +118,22 @@ sub xml {
 
 sub get_path {
     my $self = shift;
-    my $id   = ident( $self );
 
-    return '/' . join( '/', @{ $path{$id} } );
+    return '/' . join( '/', @{ $self->{path} } );
 }
 
 sub walk {
     my $self = shift;
-    my $id   = ident( $self );
 
     TOKEN: while ( my $tok = $self->get_token ) {
         if ( $tok->[0] eq 'S' ) {
-            my $tos = $context{$id};
+            my $tos = $self->{context};
             my $handler = $self->_get_rule_handler( $tos, $tok );
             if ( defined( $handler ) ) {
                 my $stopat = $self->_depth;
 
                 # Push context
-                $context{$id} = {
+                $self->{context} = {
                     parent => $tos,
                     stopat => $stopat,
                     obj    => $tos->{obj}
@@ -156,14 +144,11 @@ sub walk {
 
                 # If handler didn't recursively parse the content of
                 # this node we need to discard it.
-                while ( $self->_depth >= $stopat
-                    && ( $tok = $self->get_token ) ) {
-
-                    # do nothing
-                }
+                1 while $self->_depth >= $stopat
+                      && ( $tok = $self->get_token );
 
                 # Pop context
-                $context{$id} = $tos;
+                $self->{context} = $tos;
             }
             else {
                 $self->walk;
@@ -177,29 +162,26 @@ sub walk {
 
 sub on {
     my $self = shift;
-    my $id   = ident( $self );
     my ( $path, $cb ) = @_;
 
     $path = [$path] unless ref $path eq 'ARRAY';
-    $context{$id}->{rules}->{$_} = $cb for @$path;
+    $self->{context}->{rules}->{$_} = $cb for @$path;
 }
 
 sub inherit {
-    my $self     = shift;
-    my $id       = ident( $self );
+    my $self = shift;
     my ( $path ) = @_;
 
     $path = [$path] unless ref $path eq 'ARRAY';
-    $self->on( $_, $self->_get_rule_handler( $context{$id}->{parent}, $_ ) )
+    $self->on( $_,
+        $self->_get_rule_handler( $self->{context}->{parent}, $_ ) )
       for @$path;
 }
 
 sub context {
     my $self = shift;
-    my $id   = ident( $self );
-
-    $context{$id}->{obj} = shift if @_;
-    return $context{$id}->{obj};
+    $self->{context}->{obj} = shift if @_;
+    return $self->{context}->{obj};
 }
 
 1;
@@ -212,7 +194,7 @@ XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
-This document describes XML::Descent version 0.0.4
+This document describes XML::Descent version 0.10
 
 =head1 SYNOPSIS
 
@@ -507,7 +489,7 @@ as the first argument to the C<XML::TokeParser> constructor.
 
 =head1 DEPENDENCIES
 
-XML::TokeParser, Class::Std
+XML::TokeParser
 
 =head1 INCOMPATIBILITIES
 
@@ -566,3 +548,15 @@ RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
 FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
 SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGES.
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
+/bin/bash: -c: line 18: unexpected EOF while looking for matching ``'
+/bin/bash: -c: line 35: syntax error: unexpected end of file
