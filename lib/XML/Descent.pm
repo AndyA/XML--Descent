@@ -97,11 +97,24 @@ that module's documentation for more details.
 
 sub new {
   my $class = shift;
-  my $args = shift || {};
+
+  my %args = ();
+  my @opt  = ();
+  for my $arg ( @_ ) {
+    if ( 'HASH' eq ref $arg ) {
+      %args = ( %args, %$arg );
+    }
+    else {
+      push @opt, $arg;
+    }
+  }
+  croak "Expected a number of name => value pairs"
+   if @opt % 2;
+  %args = ( %args, @opt );
 
   return bless {
     parser => XML::TokeParser->new(
-      delete $args->{Input} || croak( "No Input arg" ), %$args
+      delete $args{Input} || croak( "No Input arg" ), %args
     ),
     context => {
       parent => undef,
@@ -115,17 +128,13 @@ sub new {
 }
 
 sub _get_rule_handler {
-  my $self = shift;
-  my ( $tos, $tok ) = @_;
-  my $elem = $tok->[1];
+  my ( $self, $tos, $elem ) = @_;
   while ( $tos ) {
-    if ( my $handler = $tos->{rules}->{$elem}
-      || $tos->{rules}->{'*'} ) {
-      return $handler;
+    if ( my $h = $tos->{rules}{$elem} || $tos->{rules}{'*'} ) {
+      return $h;
     }
     $tos = $tos->{parent};
   }
-
   return;
 }
 
@@ -146,7 +155,7 @@ sub walk {
   TOKEN: while ( my $tok = $self->get_token ) {
     if ( $tok->[0] eq 'S' ) {
       my $tos = $self->{context};
-      my $handler = $self->_get_rule_handler( $tos, $tok );
+      my $handler = $self->_get_rule_handler( $tos, $tok->[1] );
       if ( defined $handler ) {
         my $stopat = $self->_depth;
 
@@ -241,6 +250,7 @@ sub on {
     $path = [$path] unless ref $path eq 'ARRAY';
     $self->{context}{rules}{$_} = $cb for @$path;
   }
+  return $self;
 }
 
 =head2 C<inherit( [ element names ] )>
@@ -302,6 +312,7 @@ sub inherit {
   $self->on( $_,
     $self->_get_rule_handler( $self->{context}{parent}, $_ ) )
    for @$path;
+  return $self;
 }
 
 =head2 C<context>

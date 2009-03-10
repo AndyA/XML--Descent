@@ -22,3 +22,6 @@ Revision history for XML-Descent
 1.00    2009-03-10
         Tidy up documentation.
         Allow on to accept multiple handler specs.
+
+1.01    2009-03-10
+        Fix inherit and test.

@@ -6,6 +6,8 @@
 # Makemaker generated files and dirs.
 ^MANIFEST\.
 ^Makefile$
+^Build$
+^_build/
 ^andy/
 ^doc/
 ^blib/
