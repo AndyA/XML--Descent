@@ -11,8 +11,9 @@ my $builder = Module::Build->new(
   dist_author       => 'Andy Armstrong <andy@hexten.net>',
   dist_version_from => 'lib/XML/Descent.pm',
   requires          => {
-    'Test::More'      => 0,
-    'XML::TokeParser' => 0,
+    'Test::More'        => 0,
+    'XML::TokeParser'   => 0,
+    'Test::Differences' => 0,
   },
   add_to_cleanup => ['XML-Descent-*'],
 );

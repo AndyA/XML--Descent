@@ -25,3 +25,5 @@ Revision history for XML-Descent
 
 1.01    2009-03-10
         Fix inherit and test.
+        Implement before/after hooks.
+        Implement scope_handlers, all_handlers.

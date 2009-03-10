@@ -13,8 +13,9 @@ WriteMakefile(
   ABSTRACT_FROM => 'lib/XML/Descent.pm',
   PL_FILES      => {},
   PREREQ_PM     => {
-    'Test::More'      => 0,
-    'XML::TokeParser' => 0,
+    'Test::More'        => 0,
+    'XML::TokeParser'   => 0,
+    'Test::Differences' => 0,
   },
   dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
   clean => { FILES    => 'XML-Descent-*' },
