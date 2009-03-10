@@ -8,180 +8,180 @@ use XML::TokeParser;
 our $VERSION = '0.12';
 
 sub new {
-    my $class = shift;
-    my $args = shift || {};
+  my $class = shift;
+  my $args = shift || {};
 
-    return bless {
-        parser => XML::TokeParser->new(
-            delete $args->{Input} || croak( "No Input arg" ), %$args
-        ),
-        context => {
-            parent => undef,
-            rules  => {},
-            obj    => undef
-        },
-        token => undef,
-        path  => [],
+  return bless {
+    parser => XML::TokeParser->new(
+      delete $args->{Input} || croak( "No Input arg" ), %$args
+    ),
+    context => {
+      parent => undef,
+      rules  => {},
+      obj    => undef
+    },
+    token => undef,
+    path  => [],
 
-    }, $class;
+  }, $class;
 }
 
 sub _get_rule_handler {
-    my $self = shift;
-    my ( $tos, $tok ) = @_;
-    my $elem = $tok->[1];
-    while ( $tos ) {
-        if ( my $handler = $tos->{rules}->{$elem}
-            || $tos->{rules}->{'*'} ) {
-            return $handler;
-        }
-        $tos = $tos->{parent};
+  my $self = shift;
+  my ( $tos, $tok ) = @_;
+  my $elem = $tok->[1];
+  while ( $tos ) {
+    if ( my $handler = $tos->{rules}->{$elem}
+      || $tos->{rules}->{'*'} ) {
+      return $handler;
     }
+    $tos = $tos->{parent};
+  }
 
-    return;
+  return;
 }
 
 sub _depth {
-    my $self = shift;
+  my $self = shift;
 
-    return scalar( @{ $self->{path} } );
+  return scalar( @{ $self->{path} } );
 }
 
 sub get_token {
-    my $self = shift;
-    my $p    = $self->{parser};
+  my $self = shift;
+  my $p    = $self->{parser};
 
-    my $tok = $self->{token} = $p->get_token;
+  my $tok = $self->{token} = $p->get_token;
 
-    if ( defined( $tok ) ) {
-        if ( $tok->[0] eq 'S' ) {
-            push @{ $self->{path} }, $tok->[1];
-        }
-        elsif ( $tok->[0] eq 'E' ) {
-            my $tos = pop @{ $self->{path} };
-            die "$tos <> $tok->[1]"
-              unless $tos eq $tok->[1];
-        }
+  if ( defined( $tok ) ) {
+    if ( $tok->[0] eq 'S' ) {
+      push @{ $self->{path} }, $tok->[1];
     }
+    elsif ( $tok->[0] eq 'E' ) {
+      my $tos = pop @{ $self->{path} };
+      die "$tos <> $tok->[1]"
+       unless $tos eq $tok->[1];
+    }
+  }
 
-    my $stopat = $self->{context}->{stopat};
-    return if defined( $stopat ) && $self->_depth < $stopat;
-    return $tok;
+  my $stopat = $self->{context}->{stopat};
+  return if defined( $stopat ) && $self->_depth < $stopat;
+  return $tok;
 }
 
 sub text {
-    my $self = shift;
-    my @txt  = ();
+  my $self = shift;
+  my @txt  = ();
 
-    TOKEN: while ( my $tok = $self->get_token ) {
-        if ( $tok->[0] eq 'S' ) {
-            push @txt, $self->text;
-        }
-        elsif ( $tok->[0] eq 'E' ) {
-            last TOKEN;
-        }
-        elsif ( $tok->[0] eq 'T' ) {
-            push @txt, $tok->[1];
-        }
+  TOKEN: while ( my $tok = $self->get_token ) {
+    if ( $tok->[0] eq 'S' ) {
+      push @txt, $self->text;
     }
+    elsif ( $tok->[0] eq 'E' ) {
+      last TOKEN;
+    }
+    elsif ( $tok->[0] eq 'T' ) {
+      push @txt, $tok->[1];
+    }
+  }
 
-    return join( '', @txt );
+  return join( '', @txt );
 }
 
 sub xml {
-    my $self = shift;
+  my $self = shift;
 
-    my @xml = ();
+  my @xml = ();
 
-    TOKEN: while ( my $tok = $self->get_token ) {
-        if ( $tok->[0] eq 'S' ) {
-            push @xml, $tok->[4];
-            push @xml, $self->xml;
-            push @xml, $self->{token}->[2];
-        }
-        elsif ( $tok->[0] eq 'E' ) {
-            last TOKEN;
-        }
-        elsif ( $tok->[0] eq 'T' || $tok->[0] eq 'C' ) {
-            push @xml, $tok->[1];
-        }
-        elsif ( $tok->[0] eq 'PI' ) {
-            push @xml, $tok->[3];
-        }
-        else {
-            die "Unhandled token type: $tok->[0]";
-        }
+  TOKEN: while ( my $tok = $self->get_token ) {
+    if ( $tok->[0] eq 'S' ) {
+      push @xml, $tok->[4];
+      push @xml, $self->xml;
+      push @xml, $self->{token}->[2];
     }
+    elsif ( $tok->[0] eq 'E' ) {
+      last TOKEN;
+    }
+    elsif ( $tok->[0] eq 'T' || $tok->[0] eq 'C' ) {
+      push @xml, $tok->[1];
+    }
+    elsif ( $tok->[0] eq 'PI' ) {
+      push @xml, $tok->[3];
+    }
+    else {
+      die "Unhandled token type: $tok->[0]";
+    }
+  }
 
-    return join( '', @xml );
+  return join( '', @xml );
 }
 
 sub get_path {
-    my $self = shift;
+  my $self = shift;
 
-    return '/' . join( '/', @{ $self->{path} } );
+  return '/' . join( '/', @{ $self->{path} } );
 }
 
 sub walk {
-    my $self = shift;
+  my $self = shift;
 
-    TOKEN: while ( my $tok = $self->get_token ) {
-        if ( $tok->[0] eq 'S' ) {
-            my $tos = $self->{context};
-            my $handler = $self->_get_rule_handler( $tos, $tok );
-            if ( defined( $handler ) ) {
-                my $stopat = $self->_depth;
+  TOKEN: while ( my $tok = $self->get_token ) {
+    if ( $tok->[0] eq 'S' ) {
+      my $tos = $self->{context};
+      my $handler = $self->_get_rule_handler( $tos, $tok );
+      if ( defined( $handler ) ) {
+        my $stopat = $self->_depth;
 
-                # Push context
-                $self->{context} = {
-                    parent => $tos,
-                    stopat => $stopat,
-                    obj    => $tos->{obj}
-                };
+        # Push context
+        $self->{context} = {
+          parent => $tos,
+          stopat => $stopat,
+          obj    => $tos->{obj}
+        };
 
-                # Call handler
-                $handler->( $tok->[1], $tok->[2], $tos->{obj} );
+        # Call handler
+        $handler->( $tok->[1], $tok->[2], $tos->{obj} );
 
-                # If handler didn't recursively parse the content of
-                # this node we need to discard it.
-                1 while $self->_depth >= $stopat
-                      && ( $tok = $self->get_token );
+        # If handler didn't recursively parse the content of
+        # this node we need to discard it.
+        1 while $self->_depth >= $stopat
+           && ( $tok = $self->get_token );
 
-                # Pop context
-                $self->{context} = $tos;
-            }
-            else {
-                $self->walk;
-            }
-        }
-        elsif ( $tok->[0] eq 'E' ) {
-            last TOKEN;
-        }
+        # Pop context
+        $self->{context} = $tos;
+      }
+      else {
+        $self->walk;
+      }
     }
+    elsif ( $tok->[0] eq 'E' ) {
+      last TOKEN;
+    }
+  }
 }
 
 sub on {
-    my $self = shift;
-    my ( $path, $cb ) = @_;
+  my $self = shift;
+  my ( $path, $cb ) = @_;
 
-    $path = [$path] unless ref $path eq 'ARRAY';
-    $self->{context}->{rules}->{$_} = $cb for @$path;
+  $path = [$path] unless ref $path eq 'ARRAY';
+  $self->{context}->{rules}->{$_} = $cb for @$path;
 }
 
 sub inherit {
-    my $self = shift;
-    my ( $path ) = @_;
+  my $self = shift;
+  my ( $path ) = @_;
 
-    $path = [$path] unless ref $path eq 'ARRAY';
-    $self->on( $_,
-        $self->_get_rule_handler( $self->{context}->{parent}, $_ ) )
-      for @$path;
+  $path = [$path] unless ref $path eq 'ARRAY';
+  $self->on( $_,
+    $self->_get_rule_handler( $self->{context}->{parent}, $_ ) )
+   for @$path;
 }
 
 sub context {
-    my $self = shift;
-    $self->{context}->{obj} = shift if @_;
-    return $self->{context}->{obj};
+  my $self = shift;
+  $self->{context}->{obj} = shift if @_;
+  return $self->{context}->{obj};
 }
 
 1;

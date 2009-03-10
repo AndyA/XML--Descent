@@ -14,19 +14,21 @@ $| = 1;
 
 # Example 1
 {
-    my $xml = <<EOX;
+  my $xml = <<EOX;
 <links>
     <link url="http://google.com/" />
     <link url="http://hexten.net/" />
 </links>
 EOX
 
-    my $p = XML::Descent->new({ Input => \$xml });
-    $p->on(link => sub {
-        my ($elem, $attr) = @_;
-        print "Found link: ", $attr->{url}, "\n";
-        $p->walk(); # recurse
-    });
-    $p->walk(); # parse
+  my $p = XML::Descent->new( { Input => \$xml } );
+  $p->on(
+    link => sub {
+      my ( $elem, $attr ) = @_;
+      print "Found link: ", $attr->{url}, "\n";
+      $p->walk();    # recurse
+    }
+  );
+  $p->walk();        # parse
 }
 
