@@ -19,6 +19,6 @@ Revision history for XML-Descent
 0.11    2007-11-22
         Removed garbage at eof.
 
-0.12    2009-03-10
+1.00    2009-03-10
         Tidy up documentation.
         Allow on to accept multiple handler specs.
