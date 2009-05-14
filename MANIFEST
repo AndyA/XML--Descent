@@ -4,6 +4,7 @@ inc/MyBuilder.pm
 lib/XML/Descent.pm
 Makefile.PL
 MANIFEST
+META.yml
 README
 t/00.load.t
 t/01.parse.t
