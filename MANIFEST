@@ -1,12 +1,13 @@
 Build.PL
 Changes
+inc/MyBuilder.pm
 lib/XML/Descent.pm
 Makefile.PL
 MANIFEST
-META.yml
 README
 t/00.load.t
 t/01.parse.t
 t/02.inherit.t
+t/03.text.t
 t/pod-coverage.t
 t/pod.t
