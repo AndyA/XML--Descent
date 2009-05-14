@@ -27,3 +27,6 @@ Revision history for XML-Descent
         Fix inherit and test.
         Implement before/after hooks.
         Implement scope_handlers, all_handlers.
+
+1.02    2009-05-14
+        Make C<xml> round trip entities correctly.

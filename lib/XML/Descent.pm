@@ -495,7 +495,7 @@ sub xml {
       last TOKEN;
     }
     elsif ( $tok->[0] eq 'T' || $tok->[0] eq 'C' ) {
-      push @xml, $tok->[1];
+      push @xml, $tok->[2];
     }
     elsif ( $tok->[0] eq 'PI' ) {
       push @xml, $tok->[3];
@@ -597,7 +597,7 @@ sub all_handlers {
   my %seen = ();
   my @h    = ();
 
-  my $tos  = $self->{context};
+  my $tos = $self->{context};
   while ( $tos ) {
     push @h, grep { !$seen{$_}++ }
      grep { $_ ne '*' } keys %{ $tos->{rules} || {} };
