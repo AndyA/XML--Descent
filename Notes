@@ -1,0 +1,11 @@
+Make it possible to rewind:
+
+  $p->mark->walk;
+  my $t = $p->text;
+
+Make it possible to specify tag paths:
+
+  $p->on('html/head/title' => sub {
+    my ( $elem, $attr, $ctx ) = @_;
+  });
+
