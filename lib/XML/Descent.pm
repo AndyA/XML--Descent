@@ -11,7 +11,7 @@ XML::Descent - Recursive descent XML parsing
 
 =head1 VERSION
 
-This document describes XML::Descent version 1.03
+This document describes XML::Descent version 1.04
 
 =head1 SYNOPSIS
 
@@ -78,7 +78,7 @@ limited to the XML inside the node that triggered the handler.
 
 =cut
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 
 =head1 INTERFACE 
 
