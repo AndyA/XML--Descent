@@ -30,3 +30,6 @@ Revision history for XML-Descent
 
 1.02    2009-05-14
         Make C<xml> round trip entities correctly.
+
+1.03    2009-05-17
+        Allow element paths to be supplied to C<on>.

@@ -87,8 +87,8 @@ our $VERSION = '1.03';
 Create a new XML::Descent. Options are supplied has a hash reference.
 The only option recognised directly by XML::Descent is C<Input> which
 should be reference to the object that provides the XML source. Any
-value that can be passed as the first argument to C<< XML::TokeParser-
->new >> is allowed.
+value that can be passed as the first argument to 
+C<< XML::TokeParser->new >> is allowed.
 
 The remaining options are passed directly to C<XML::TokeParser>. Consult
 that module's documentation for more details.
@@ -112,10 +112,13 @@ sub new {
    if @opt % 2;
   %args = ( %args, @opt );
 
+  my $parser
+   = XML::TokeParser->new( delete $args{Input}
+     || croak( "No Input arg" ), %args )
+   || croak( "Failed to create XML::TokeParser" );
+
   return bless {
-    parser => XML::TokeParser->new(
-      delete $args{Input} || croak( "No Input arg" ), %args
-    ),
+    parser  => $parser,
     context => {
       parent => undef,
       rules  => {},
@@ -241,6 +244,25 @@ A handler named '*' will trigger for all elements for which there is no
 explicit handler. A nested '*' handler hides all handlers defined in
 containing scopes.
 
+As a shorthand you may specify a path to a nested element:
+
+  $p->on( 'a/b/c' => sub {
+    print "Woo!\n";
+  })->walk;
+
+That's equivalent to:
+
+  $p->on( a => sub {
+    $p->on( b => sub {
+      $p->on( c => sub {
+        print "Woo!\n";
+      })->walk;
+    })->walk;
+  })->walk;
+
+Note that this shorthand only applies to C<on> - not to other methods
+that accept element names.
+
 =cut
 
 sub on {
@@ -248,9 +270,19 @@ sub on {
   croak "Please supply a number of path => handler pairs"
    if @_ % 2;
 
-  while ( my ( $path, $cb ) = splice @_, 0, 2 ) {
-    $path = [$path] unless ref $path eq 'ARRAY';
-    $self->{context}{rules}{$_} = $cb for @$path;
+  while ( my ( $spec, $cb ) = splice @_, 0, 2 ) {
+    $spec = [$spec] unless ref $spec eq 'ARRAY';
+    for my $el ( @$spec ) {
+      my ( $name, $tail ) = split /\//, $el, 2;
+      if ( defined $tail ) {
+        $self->{context}{rules}{$name} = sub {
+          $self->on( $tail => $cb )->walk;
+        };
+      }
+      else {
+        $self->{context}{rules}{$el} = $cb;
+      }
+    }
   }
   return $self;
 }
