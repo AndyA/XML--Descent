@@ -368,7 +368,7 @@ sub _filter {
 =head2 C<before>
 
 Register a handler to be called before the existing handler for an
-element. As with C<on> multiple elements may be targetted by providing
+element. As with C<on> multiple elements may be targeted by providing
 an array ref.
 
 =cut
@@ -386,7 +386,7 @@ sub before {
 =head2 C<after>
 
 Register a handler to be called after the existing handler for an
-element. As with C<on> multiple elements may be targetted by providing
+element. As with C<on> multiple elements may be targeted by providing
 an array ref.
 
 =cut
@@ -666,7 +666,7 @@ L<http://rt.cpan.org>.
 
 Andy Armstrong  C<< <andy@hexten.net> >>
 
-=head1 LICENCE AND COPYRIGHT
+=head1 LICENSE AND COPYRIGHT
 
 Copyright (c) 2006-2009, Andy Armstrong C<< <andy@hexten.net> >>. All
 rights reserved.
@@ -688,7 +688,7 @@ NECESSARY SERVICING, REPAIR, OR CORRECTION.
 
 IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
 WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
-REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENCE, BE
+REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENSE, BE
 LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL,
 OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE
 THE SOFTWARE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
